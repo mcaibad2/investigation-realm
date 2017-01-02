@@ -31,6 +31,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Random;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
@@ -48,12 +49,10 @@ import io.realm.RealmResults;
 // http://nelenkov.blogspot.dk/2012/05/storing-application-secrets-in-androids.html
 public class MainActivity extends AppCompatActivity {
 
-    public static final String ALIAS = "bilbo";
-    private Realm mRealm;
+    public static final String ALIAS = "2393823";
     private KeyStore mKeyStore;
     private SharedPreferences mSharedPreferences;
 
-    @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -79,11 +78,12 @@ public class MainActivity extends AppCompatActivity {
                 KeyPair keyPair = generator.generateKeyPair();
 
                 // Create key
-                byte[] key = new byte[64];
-                new SecureRandom().nextBytes(key);
+                byte[] bytes = new byte[64];
+                new SecureRandom().nextBytes(bytes);
+                String key = new String(Base64.encode(bytes, Base64.DEFAULT), "UTF-8");
 
                 // Encrypt key
-                String encryptedKey = encryptString(String.valueOf(key));
+                String encryptedKey = encryptString(key);
 
                 // Save encrypted key to preferences
                 SharedPreferences.Editor editor = mSharedPreferences.edit();
@@ -93,9 +93,26 @@ public class MainActivity extends AppCompatActivity {
             String keyFromPrefs = mSharedPreferences.getString("key", null);
             String decryptedKey = decryptString(keyFromPrefs);
             RealmConfiguration config = new RealmConfiguration.Builder()
-                    .encryptionKey(decryptedKey.getBytes())
+                    .encryptionKey(Base64.decode(decryptedKey.getBytes(), Base64.DEFAULT))
                     .build();
-            mRealm = Realm.getInstance(config);
+            // Realm.deleteRealm(config);
+            Realm realm = Realm.getInstance(config);
+            realm.executeTransaction(new Realm.Transaction() {
+                @Override
+                public void execute(Realm realm) {
+                    // Add a person
+                    Person person = realm.createObject(Person.class);
+                    person.setId(1);
+                    person.setName("Young Person");
+                    person.setAge(14);
+                }
+            });
+            // long count = realm.where(Person.class).count();
+            RealmResults<Person> persons = realm.where(Person.class).findAll();
+            for (int i = 0; i < persons.size(); i++) {
+                Person person = persons.get(i);
+                Toast.makeText(this, person.getName(), Toast.LENGTH_SHORT).show();
+            }
         } catch (IOException e) {
             e.printStackTrace();
         } catch (NoSuchAlgorithmException e) {
@@ -109,28 +126,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (NoSuchProviderException e) {
             e.printStackTrace();
         }
-        mRealm.executeTransaction(new Realm.Transaction() {
-            @Override
-            public void execute(Realm realm) {
-                // Add a person
-                Person person = realm.createObject(Person.class);
-                person.setId(1);
-                person.setName("Young Person");
-                person.setAge(14);
-            }
-        });
-        // long count = mRealm.where(Person.class).count();
-        RealmResults<Person> persons = mRealm.where(Person.class).findAll();
-        for (int i = 0; i < persons.size(); i++) {
-            Person person = persons.get(i);
-            Toast.makeText(this, person.getName(), Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        mRealm.close();
     }
 
     public String encryptString(String clearText) {
