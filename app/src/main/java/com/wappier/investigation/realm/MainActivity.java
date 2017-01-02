@@ -6,7 +6,12 @@ import android.widget.Toast;
 
 import com.wappier.investigation.realm.model.Person;
 
+import java.security.SecureRandom;
+
+import javax.crypto.SecretKey;
+
 import io.realm.Realm;
+import io.realm.RealmConfiguration;
 import io.realm.RealmResults;
 
 public class MainActivity extends AppCompatActivity {
@@ -17,7 +22,19 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        mRealm = Realm.getDefaultInstance();
+
+        // How to store key to keystore
+        // https://developer.android.com/training/articles/keystore.html
+        // http://nelenkov.blogspot.dk/2012/05/storing-application-secrets-in-androids.html
+
+        byte[] key = new byte[64];
+        new SecureRandom().nextBytes(key);
+        RealmConfiguration realmConfiguration = new RealmConfiguration.Builder()
+                .encryptionKey(key)
+                .build();
+        Realm.deleteRealm(realmConfiguration);
+        mRealm = Realm.getInstance(realmConfiguration);
+
         mRealm.executeTransaction(new Realm.Transaction() {
             @Override
             public void execute(Realm realm) {
@@ -34,5 +51,11 @@ public class MainActivity extends AppCompatActivity {
             Person person = persons.get(i);
             Toast.makeText(this, person.getName(), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        mRealm.close();
     }
 }
